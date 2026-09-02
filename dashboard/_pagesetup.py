@@ -14,6 +14,7 @@ instead of being read from disk.
 import sys
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +29,20 @@ CATEGORY_OPTIONS = {
     "protan": {"subgroup": "protan"},
     "deutan": {"subgroup": "deutan"},
 }
+
+
+GROUP_DISPLAY = {"CTR": "HC"}  # other groups (PD, HD, UNKNOWN) display as-is
+
+
+def build_subject_labels(df: pd.DataFrame) -> dict[str, str]:
+    """sub_id -> "sub_id (group)" for widget format_func, e.g. "MET000 (HC)".
+    subgroup (protan/deutan) takes priority over the raw group (CVD) when
+    set, since it's the more informative split for these subjects."""
+    labels = {}
+    for sub_id, group, subgroup in df[["sub_id", "group", "subgroup"]].drop_duplicates("sub_id").itertuples(index=False):
+        display = subgroup if subgroup in ("protan", "deutan") else GROUP_DISPLAY.get(group, group)
+        labels[sub_id] = f"{sub_id} ({display})"
+    return labels
 
 
 def sidebar_mode_header(text: str, color: str | None = None) -> None:

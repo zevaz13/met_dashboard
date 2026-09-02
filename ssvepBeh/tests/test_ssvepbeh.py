@@ -416,6 +416,17 @@ def test_plot_grid_with_clicks_respects_size_alpha_and_cmap(beh_df, runmap_df, b
     assert ax.images[0].get_cmap().name == "plasma"
 
 
+def test_plot_grid_with_clicks_edge_is_thick_enough_to_read_against_the_heatmap(beh_df, runmap_df, baselines_df):
+    """A hairline (0.5pt) edge at typical dashboard alpha/size settings all
+    but disappears against a heatmap cell close to the marker's own color
+    (e.g. white clicks over a diverging colormap's near-white midpoint) --
+    pin a thicker minimum so the black edge stays visible as a ring."""
+    E = analysis.mean_grid(runmap_df, baselines_df, "MET001", 1, normalize=analysis.DEFAULT_NORMALIZE)
+    clicks = beh_df[beh_df["sub_id"] == "MET001"]
+    ax = plotting.plot_grid_with_clicks(E, clicks)
+    assert ax.collections[0].get_linewidths()[0] >= 1.0
+
+
 def test_plot_grid_with_clicks_vmin_vmax_override_autoscale(beh_df, runmap_df, baselines_df):
     E = analysis.mean_grid(runmap_df, baselines_df, "MET001", 1, normalize=analysis.DEFAULT_NORMALIZE)
     clicks = beh_df[beh_df["sub_id"] == "MET001"]

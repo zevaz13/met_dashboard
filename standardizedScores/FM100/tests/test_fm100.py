@@ -67,6 +67,15 @@ def test_session_suffix_parsing(df):
     assert met000_sessions == [1, 2, 3]  # MET000, MET000b, MET000c
 
 
+def test_no_duplicate_subject_session_pairs(df):
+    """Every (sub_id, session) pair must be unique -- a raw Reference field
+    missing its b/c suffix (as MET039's repeat visit briefly was) collapses
+    two real sessions into one, which _subject_profile then rejects."""
+    counts = df.groupby(["sub_id", "session"]).size()
+    dupes = counts[counts > 1]
+    assert dupes.empty, f"duplicate (sub_id, session) rows: {dupes.to_dict()}"
+
+
 def test_caps_are_a_permutation_of_1_to_85(df):
     for caps in df["caps"]:
         assert caps.shape == (85,)

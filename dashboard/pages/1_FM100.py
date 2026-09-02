@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from _pagesetup import CATEGORY_OPTIONS, sidebar_mode_header, use_scripts
+from _pagesetup import CATEGORY_OPTIONS, build_subject_labels, sidebar_mode_header, use_scripts
 
 mods = use_scripts("standardizedScores/FM100/scripts", "loader", "scores", "plotting", "comparisons")
 loader, plotting, comparisons = mods["loader"], mods["plotting"], mods["comparisons"]
@@ -31,6 +31,7 @@ def load_data():
 
 
 df = load_data()
+subject_labels = build_subject_labels(df)
 
 mode = st.segmented_control("View", ["Group", "Participant"], default="Group")
 
@@ -45,7 +46,8 @@ if mode == "Group":
 
     st.sidebar.header("Compare to participant(s) (optional)")
     compare_subjects = st.sidebar.multiselect(
-        "Participants to overlay", sorted(df["sub_id"].unique()), max_selections=len(plotting.SUBJECT_COLORS)
+        "Participants to overlay", sorted(df["sub_id"].unique()), max_selections=len(plotting.SUBJECT_COLORS),
+        format_func=lambda s: subject_labels.get(s, s),
     )
 
     st.subheader("Group error profiles")
@@ -87,7 +89,8 @@ if mode == "Group":
 else:
     sidebar_mode_header("Participant", PARTICIPANT_COLOR)
     subjects = st.sidebar.multiselect(
-        "Subject(s)", sorted(df["sub_id"].unique()), max_selections=len(plotting.SUBJECT_COLORS), key="participant_tab_subjects"
+        "Subject(s)", sorted(df["sub_id"].unique()), max_selections=len(plotting.SUBJECT_COLORS), key="participant_tab_subjects",
+        format_func=lambda s: subject_labels.get(s, s),
     )
 
     st.sidebar.header("Display")

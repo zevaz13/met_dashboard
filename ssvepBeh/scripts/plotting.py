@@ -104,7 +104,7 @@ def plot_grid_with_clicks(
     if ax is None:
         _, ax = plt.subplots()
     im = ax.imshow(eeg_grid.T, origin="lower", cmap=cmap, vmin=vmin, vmax=vmax, aspect="auto", extent=(red[0], red[-1], green[0], green[-1]))
-    ax.scatter(clicks_df["red"], clicks_df["green"], color=CLICK_COLOR, s=s, alpha=alpha, edgecolor="black", linewidth=0.5)
+    ax.scatter(clicks_df["red"], clicks_df["green"], color=CLICK_COLOR, s=s, alpha=alpha, edgecolor="black", linewidth=1.2)
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_xlabel("red")

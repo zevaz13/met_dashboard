@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from _pagesetup import CATEGORY_OPTIONS, sidebar_mode_header, use_scripts
+from _pagesetup import CATEGORY_OPTIONS, build_subject_labels, sidebar_mode_header, use_scripts
 
 mods = use_scripts("ssveps/scripts", "analysis", "permutation", "plotting")
 analysis, permutation, plotting = mods["analysis"], mods["permutation"], mods["plotting"]
@@ -21,7 +21,9 @@ st.title("SSVEP (EEG grid response)")
 
 INDIVIDUALS_COLOR = "#f1c232"
 SESSION = 1  # every subject has a session-1 row (matches every ssveps/ notebook)
-OVERLAY_SIZE, OVERLAY_ALPHA = 8, 0.4  # smaller/more transparent than the notebooks' defaults -- less screen space here
+OVERLAY_SIZE, OVERLAY_ALPHA = 14, 0.6  # smaller/more transparent than the notebooks' defaults (20, 0.8) -- less
+# screen space here, but not so small/faint the clicks disappear against the heatmap (see plot_grid_with_clicks'
+# thicker edge, ssvepBeh/scripts/plotting.py)
 
 NORMALIZE_OPTIONS = {
     "percent change (default)": analysis.DEFAULT_NORMALIZE,
@@ -55,6 +57,7 @@ def load_behavioral():
 
 runmap_df, baselines_df, metadata_df = load_data()
 beh_df = load_behavioral()
+subject_labels = build_subject_labels(metadata_df)
 
 
 @st.cache_data(show_spinner="Running permutation test...")
@@ -141,7 +144,8 @@ if mode == "Groups":
 else:
     sidebar_mode_header("Individual participants", INDIVIDUALS_COLOR)
     subjects = st.sidebar.multiselect(
-        "Subjects (any group)", sorted(metadata_df.loc[metadata_df["session"] == SESSION, "sub_id"].unique()), key="individuals_tab_subjects"
+        "Subjects (any group)", sorted(metadata_df.loc[metadata_df["session"] == SESSION, "sub_id"].unique()), key="individuals_tab_subjects",
+        format_func=lambda s: subject_labels.get(s, s),
     )
 
     st.sidebar.header("Normalization")

@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from _pagesetup import CATEGORY_OPTIONS, sidebar_mode_header, use_scripts
+from _pagesetup import CATEGORY_OPTIONS, build_subject_labels, sidebar_mode_header, use_scripts
 
 mods = use_scripts("beh/scripts", "loader", "features", "comparisons", "plotting")
 loader, features, comparisons, plotting = mods["loader"], mods["features"], mods["comparisons"], mods["plotting"]
@@ -34,6 +34,7 @@ def load_data():
 
 
 df = load_data()
+subject_labels = build_subject_labels(df)
 
 mode = st.segmented_control("View", ["Raw clicks", "Shape features"], default="Raw clicks")
 
@@ -46,7 +47,8 @@ if mode == "Raw clicks":
 
     st.sidebar.header(f"Participants (up to {RAW_CLICKS_MAX_SUBJECTS})")
     raw_subjects = st.sidebar.multiselect(
-        "Subjects", sorted(df["sub_id"].unique()), max_selections=RAW_CLICKS_MAX_SUBJECTS, key="raw_tab_subjects"
+        "Subjects", sorted(df["sub_id"].unique()), max_selections=RAW_CLICKS_MAX_SUBJECTS, key="raw_tab_subjects",
+        format_func=lambda s: subject_labels.get(s, s),
     )
 
     st.subheader("Groups side by side")
@@ -84,7 +86,10 @@ else:
     y_feature = st.sidebar.selectbox("Shape feature (y-axis)", SHAPE_FEATURES, index=2)
 
     st.sidebar.header("Single subject (optional)")
-    subject = st.sidebar.selectbox("Subject", ["(none)"] + sorted(df["sub_id"].unique()), key="feature_tab_subject")
+    subject = st.sidebar.selectbox(
+        "Subject", ["(none)"] + sorted(df["sub_id"].unique()), key="feature_tab_subject",
+        format_func=lambda s: subject_labels.get(s, s),
+    )
 
     st.subheader("What these features mean")
     for feat in SHAPE_FEATURES:
