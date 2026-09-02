@@ -1,0 +1,21 @@
+[project]
+name = "met-dashboard"
+version = "0.1.0"
+description = "Standalone Streamlit dashboard for the MET colorblindness study"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "hotelling>=0.5.0",
+    "matplotlib>=3.11.1",
+    "numpy>=2.5.2",
+    "pandas>=3.0.5",
+    "pingouin>=0.6.1",
+    "scipy>=1.18.0",
+    "statsmodels>=0.14.6",
+    "streamlit>=1.62.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
