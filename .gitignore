@@ -11,6 +11,8 @@ __pycache__/
 
 # Claude
 .CLAUDE
+CLAUDE.md
+/PLAN
 
 # Data -- the folder structure is tracked (README.md placeholders below),
 # actual data (raw or derived, real or test) is never committed.

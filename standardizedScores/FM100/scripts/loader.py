@@ -20,6 +20,11 @@ DATA_DIR = os.environ.get(
 
 RAW_PATH = os.path.join(DATA_DIR, "standardizedScores", "repeatedSessionsPY.txt")
 SSVEP_METADATA_PATH = os.path.join(DATA_DIR, "ssveps", "files", "metadata.csv")
+BEH_RAW_PATH = os.path.join(DATA_DIR, "manualTest", "behavioral_table.csv")
+
+# PartType -> group, same mapping as beh/scripts/loader.py (independently
+# duplicated here, by project convention -- see subjects_in_group below).
+PART_TYPE_GROUP = {1: "CTR", 2: "CVD", 3: "PD", 4: "HD"}
 
 N_CAPS = 85
 # 0-indexed raw-file columns. The raw export has no real header row (its
@@ -44,7 +49,12 @@ def _parse_session_and_id(raw_id: str) -> tuple[str, int]:
     return raw_id, 1
 
 
-def load_fm100_raw(path: str = RAW_PATH, *, ssvep_metadata_path: str = SSVEP_METADATA_PATH) -> pd.DataFrame:
+def load_fm100_raw(
+    path: str = RAW_PATH,
+    *,
+    ssvep_metadata_path: str = SSVEP_METADATA_PATH,
+    beh_raw_path: str = BEH_RAW_PATH,
+) -> pd.DataFrame:
     """Tidy FM100 table: sub_id, session, group, subgroup, sex, date, caps --
     one row per (subject, session). caps is a length-85 int array, the cap
     IDs in the order the participant placed them (position i -> cap ID).
@@ -52,7 +62,10 @@ def load_fm100_raw(path: str = RAW_PATH, *, ssvep_metadata_path: str = SSVEP_MET
     group/subgroup are looked up live from ssvep_metadata_path by sub_id,
     same pattern as beh/scripts/loader.py -- these are the same
     participants, and subgroup is genuinely shared data. A subject absent
-    from that file (e.g. MET047, who has no SSVEP or behavioral data) gets
+    from that file but present in the behavioral data (e.g. MET013,
+    MET041 -- tested behaviorally but not on SSVEP) falls back to the
+    group implied by their behavioral PartType. A subject absent from
+    both (e.g. MET047, who has no SSVEP or behavioral data) gets
     group='UNKNOWN', subgroup='NA'."""
     raw = pd.read_csv(path, header=None, skiprows=1, skip_blank_lines=True, encoding="utf-8-sig")
 
@@ -76,8 +89,12 @@ def load_fm100_raw(path: str = RAW_PATH, *, ssvep_metadata_path: str = SSVEP_MET
 
     ssvep_meta = pd.read_csv(ssvep_metadata_path, keep_default_na=False)
     lookup = ssvep_meta.drop_duplicates("sub_id").set_index("sub_id")
-    df["group"] = df["sub_id"].map(lookup["group"]).fillna("UNKNOWN")
+    df["group"] = df["sub_id"].map(lookup["group"])
     df["subgroup"] = df["sub_id"].map(lookup["subgroup"]).fillna("NA")
+
+    beh_raw = pd.read_csv(beh_raw_path)
+    beh_group = beh_raw.drop_duplicates("SubID").set_index("SubID")["PartType"].map(PART_TYPE_GROUP)
+    df["group"] = df["group"].fillna(df["sub_id"].map(beh_group)).fillna("UNKNOWN")
 
     return df[["sub_id", "session", "group", "subgroup", "sex", "date", "caps"]]
 

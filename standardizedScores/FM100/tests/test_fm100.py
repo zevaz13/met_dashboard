@@ -107,6 +107,19 @@ def test_met047_is_unknown_and_met021_keeps_its_ssvep_label(df):
     assert (met021["group"] == "CTR").all()
 
 
+def test_group_falls_back_to_behavioral_data_when_absent_from_ssvep_metadata(df):
+    """MET013, MET014, MET041, MET042 have no SSVEP record (metadata.csv)
+    but do have behavioral data -- group should be resolved from there
+    instead of defaulting to UNKNOWN. MET047 has neither and stays
+    UNKNOWN (see test_met047_is_unknown_and_met021_keeps_its_ssvep_label)."""
+    expected = {"MET013": "CTR", "MET014": "CTR", "MET041": "PD", "MET042": "PD"}
+    for sub_id, expected_group in expected.items():
+        rows = df[df["sub_id"] == sub_id]
+        assert len(rows) > 0
+        assert (rows["group"] == expected_group).all()
+        assert (rows["subgroup"] == "NA").all()
+
+
 def test_subjects_in_group_filters_correctly(df):
     protan = loader.subjects_in_group(df, subgroup="protan")
     assert set(protan) == set(df.loc[df["subgroup"] == "protan", "sub_id"].unique())
