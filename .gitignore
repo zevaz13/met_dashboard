@@ -9,6 +9,9 @@ __pycache__/
 # OS
 .DS_Store
 
+# Claude
+.CLAUDE
+
 # Data -- the folder structure is tracked (README.md placeholders below),
 # actual data (raw or derived, real or test) is never committed.
 data/**

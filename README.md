@@ -12,7 +12,10 @@ no notebooks, just the presentation layer and the analysis code it calls.
 3. `uv sync` -- creates a virtual environment and installs dependencies (uv
    fetches a matching Python version automatically if needed).
 4. Place the data files you were given into `data/` (see Data below).
-5. `uv run streamlit run dashboard/Home.py` -- opens at `http://localhost:8501`.
+5. Start the dashboard -- opens at `http://localhost:8501`:
+   - Linux/macOS: `./start_dashboard.sh`
+   - Windows: double-click `start_dashboard.bat` (or run it from a terminal)
+   - Or manually: `uv run streamlit run dashboard/Home.py`
 
 ## Data
 
