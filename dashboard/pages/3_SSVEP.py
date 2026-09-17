@@ -20,7 +20,6 @@ st.set_page_config(page_title="SSVEP", page_icon="🎨", layout="wide")
 st.title("SSVEP (EEG grid response)")
 
 INDIVIDUALS_COLOR = "#f1c232"
-SESSION = 1  # every subject has a session-1 row (matches every ssveps/ notebook)
 OVERLAY_SIZE, OVERLAY_ALPHA = 14, 0.6  # smaller/more transparent than the notebooks' defaults (20, 0.8) -- less
 # screen space here, but not so small/faint the clicks disappear against the heatmap (see plot_grid_with_clicks'
 # thicker edge, ssvepBeh/scripts/plotting.py)
@@ -69,6 +68,11 @@ def run_permutation(_runmap_df, _baselines_df, _metadata_df, session, group1, su
     )
 
 
+available_sessions = sorted(metadata_df["session"].unique())
+session = st.selectbox(
+    "Session", available_sessions, index=available_sessions.index(1) if 1 in available_sessions else 0
+)
+
 mode = st.segmented_control("View", ["Groups", "Individuals"], default="Groups")
 
 if mode == "Groups":
@@ -92,16 +96,16 @@ if mode == "Groups":
     st.subheader("Mean response grids")
     if categories:
         if show_clicks:
-            sub_id_lists = [analysis.subjects_in_group(metadata_df, SESSION, group=cat.get("group"), subgroup=cat.get("subgroup")) for cat in categories]
-            grids = [analysis.mean_grid_across_subjects(runmap_df, baselines_df, sub_ids, SESSION, normalize=normalize) for sub_ids in sub_id_lists]
+            sub_id_lists = [analysis.subjects_in_group(metadata_df, session, group=cat.get("group"), subgroup=cat.get("subgroup")) for cat in categories]
+            grids = [analysis.mean_grid_across_subjects(runmap_df, baselines_df, sub_ids, session, normalize=normalize) for sub_ids in sub_id_lists]
             clicks_dfs = [beh_df[beh_df["sub_id"].isin(sub_ids)] for sub_ids in sub_id_lists]
             titles = [f"{cat['label']} (n={len(sub_ids)})" for cat, sub_ids in zip(categories, sub_id_lists)]
             fig = overlap_plotting.plot_grids_with_clicks(
                 grids, clicks_dfs, titles, s=OVERLAY_SIZE, alpha=OVERLAY_ALPHA, cmap=cmap,
-                diverging=normalize is not None, suptitle=f"session {SESSION} -- groups side by side, with behavioral clicks",
+                diverging=normalize is not None, suptitle=f"session {session} -- groups side by side, with behavioral clicks",
             )
         else:
-            fig = plotting.plot_groups_side_by_side(runmap_df, baselines_df, metadata_df, SESSION, categories, normalize=normalize, cmap=cmap)
+            fig = plotting.plot_groups_side_by_side(runmap_df, baselines_df, metadata_df, session, categories, normalize=normalize, cmap=cmap)
         st.pyplot(fig)
         plt.close(fig)
     else:
@@ -112,7 +116,7 @@ if mode == "Groups":
     if subject_category != "(none)":
         cat = {"label": subject_category, **CATEGORY_OPTIONS[subject_category]}
         fig = plotting.plot_subjects_side_by_side(
-            runmap_df, baselines_df, metadata_df, SESSION, group=cat.get("group"), subgroup=cat.get("subgroup"), normalize=normalize, cmap=cmap
+            runmap_df, baselines_df, metadata_df, session, group=cat.get("group"), subgroup=cat.get("subgroup"), normalize=normalize, cmap=cmap
         )
         st.pyplot(fig)
         plt.close(fig)
@@ -123,7 +127,7 @@ if mode == "Groups":
         rows = []
         for cat1, cat2 in itertools.combinations(categories, 2):
             result = run_permutation(
-                runmap_df, baselines_df, metadata_df, SESSION,
+                runmap_df, baselines_df, metadata_df, session,
                 cat1.get("group"), cat1.get("subgroup"), cat2.get("group"), cat2.get("subgroup"),
                 normalize, n_perm,
             )
@@ -144,7 +148,7 @@ if mode == "Groups":
 else:
     sidebar_mode_header("Individual participants", INDIVIDUALS_COLOR)
     subjects = st.sidebar.multiselect(
-        "Subjects (any group)", sorted(metadata_df.loc[metadata_df["session"] == SESSION, "sub_id"].unique()), key="individuals_tab_subjects",
+        "Subjects (any group)", sorted(metadata_df.loc[metadata_df["session"] == session, "sub_id"].unique()), key="individuals_tab_subjects",
         format_func=lambda s: subject_labels.get(s, s),
     )
 
@@ -159,14 +163,14 @@ else:
     st.subheader("Selected participants, side by side")
     if subjects:
         if show_clicks:
-            grids = [analysis.mean_grid(runmap_df, baselines_df, sub_id, SESSION, normalize=normalize) for sub_id in subjects]
+            grids = [analysis.mean_grid(runmap_df, baselines_df, sub_id, session, normalize=normalize) for sub_id in subjects]
             clicks_dfs = [beh_df[beh_df["sub_id"] == sub_id] for sub_id in subjects]
             fig = overlap_plotting.plot_grids_with_clicks(
                 grids, clicks_dfs, subjects, s=OVERLAY_SIZE, alpha=OVERLAY_ALPHA, cmap=cmap,
-                diverging=normalize is not None, suptitle=f"session {SESSION} -- selected participants, with behavioral clicks",
+                diverging=normalize is not None, suptitle=f"session {session} -- selected participants, with behavioral clicks",
             )
         else:
-            fig = plotting.plot_subjects_side_by_side(runmap_df, baselines_df, metadata_df, SESSION, sub_ids=subjects, normalize=normalize, cmap=cmap)
+            fig = plotting.plot_subjects_side_by_side(runmap_df, baselines_df, metadata_df, session, sub_ids=subjects, normalize=normalize, cmap=cmap)
         st.pyplot(fig)
         plt.close(fig)
     else:
