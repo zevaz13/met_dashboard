@@ -19,3 +19,8 @@ CLAUDE.md
 data/**
 !data/**/
 !data/**/README.md
+
+# Data intake inbox -- the folder is tracked so it always exists, but files
+# dropped into it (new subject data, awaiting the Data Intake page) are not.
+updateData/*
+!updateData/README.md
