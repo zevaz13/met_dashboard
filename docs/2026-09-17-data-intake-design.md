@@ -1,6 +1,6 @@
 # M1 Data Intake — Design
 
-Status: approved, not yet implemented.
+Status: implemented (`dataintake/`, `dashboard/pages/4_Data_Intake.py`).
 Relates to: PLAN/PLAN.md M1 (Data Loading).
 
 ## Problem
@@ -99,34 +99,61 @@ and flags the mismatch rather than silently picking one.
 
 Files are grouped into a batch by content-derived sub_id. Per file, the UI
 shows: domain, detected sub_id (editable — manual override supported),
-detected group/subgroup (always shown for confirmation, editable), and
-validity. A batch's "Commit" action is enabled only once every file in it is
-valid — invalid files must be fixed or removed first.
+detected group/subgroup (always shown for confirmation, editable), session
+(editable — see below), and validity. A batch's "Commit" action is enabled
+only once every file in it is valid — invalid files must be fixed or removed
+first.
+
+**Session** is also always shown for confirmation, same as group, but what it
+means differs per domain since only ssvep genuinely embeds one:
+
+- **ssvep**: prefilled from the `.mat`'s own `session` field; editable, and
+  overriding it changes which `(sub_id, session)` key the commit targets.
+- **beh**: prefilled from the file's own `session` column, when the file has
+  exactly one distinct value (the normal case); editable, and overriding it
+  relabels every row in the file. A file spanning multiple sessions is shown
+  read-only instead — collapsing an ambiguous multi-session file into one
+  override isn't something any current fixture or workflow needs.
+- **fm100**: the raw line carries no session marker of its own (a fresh
+  export is always unsuffixed), so there's nothing to "detect" here at all.
+  `commit.suggest_fm100_session(data_dir, sub_id)` scans the real master file
+  for the next free slot (1/2/3) and the UI shows that as a live, editable
+  default — recomputed if the sub_id override changes, since that changes
+  whose existing sessions get counted.
 
 On commit, per domain:
 
 - **ssvep**: build metadata/runmap/baseline rows via
-  `ssveps/scripts/loader.to_rows`, using the (possibly overridden) sub_id and
-  group. If `(sub_id, session)` already exists in `metadata.csv`, require an
-  explicit overwrite confirmation (default off) before replacing its
-  runmap/baseline rows — same semantics as `update_derived.py`'s y/n prompt,
-  as a checkbox instead of stdin. `metadata.csv` is written through the
-  shared `write_derived_csv` writer so formatting stays byte-identical to the
-  existing rebuild/update scripts.
-- **beh**: reverse-map the confirmed group to `PartType`, append rows to
-  `behavioral_table.csv`. Existing `(sub_id, session)` triggers the same
-  overwrite confirmation.
-- **fm100**: count existing sessions for this sub_id in
-  `repeatedSessionsPY.txt` to pick the reference-field suffix (none/`b`/`c`),
-  then append the 102-field row. Targeting an already-existing session number
-  triggers the same overwrite confirmation.
+  `ssveps/scripts/loader.to_rows`, using the (possibly overridden) sub_id,
+  group, subgroup, and session. If the resulting `(sub_id, session)` already
+  exists in `metadata.csv`, require an explicit overwrite confirmation
+  (default off) before replacing its runmap/baseline rows — same semantics as
+  `update_derived.py`'s y/n prompt, as a checkbox instead of stdin.
+  `metadata.csv` is written through the shared `write_derived_csv` writer so
+  formatting stays byte-identical to the existing rebuild/update scripts.
+- **beh**: reverse-map the confirmed group to `PartType`, apply the session
+  override if given, append rows to `behavioral_table.csv`. Existing
+  `(sub_id, session)` triggers the same overwrite confirmation.
+- **fm100**: use the confirmed/edited session (defaulting to
+  `suggest_fm100_session`'s answer) to pick the reference-field suffix
+  (none/`b`/`c`), then append the 102-field row. Targeting an already-existing
+  session number triggers the same overwrite confirmation.
 
-**Atomicity**: if every file in a batch commits successfully, all are deleted
-from `updateData/` together. If any file's commit throws despite passing
-validation, nothing in the batch is deleted — the error is surfaced and the
-batch stays in place for retry. A subject with only some domains present
-(e.g. beh only) is deleted as soon as that smaller batch is fully committed —
-it does not wait for the missing domains to ever show up.
+**Atomicity**: every `commit_*` function takes a `dry_run` flag that runs its
+full validation (including the DuplicateKeyError check) without writing
+anything. The page runs a dry-run pass over every file in a batch first, and
+only if *all* of them pass does it run a second, real pass to actually write.
+This matters because each commit's write is otherwise immediate and
+per-file: without the dry-run pass, a batch of e.g. [fm100, beh] where fm100
+has no conflict but beh does would silently write fm100 for real before
+discovering beh's conflict, leave both source files in `updateData/` for
+"retry," and then double-write fm100 when the batch is retried after fixing
+beh. (Found by hand-testing a real conflict during implementation, before
+this two-pass structure existed — see git history.) If every file in a batch
+commits successfully, all are deleted from `updateData/` together. A subject
+with only some domains present (e.g. beh only) is deleted as soon as that
+smaller batch is fully committed — it does not wait for the missing domains
+to ever show up.
 
 ## Error handling
 
@@ -149,6 +176,20 @@ in all three domains.
 The Streamlit page itself is not unit tested (no other page in this repo is)
 — verified manually via `uv run streamlit run dashboard/Home.py` before
 calling the feature done.
+
+## Related fix: SSVEP page's hardcoded session
+
+Discovered via real usage: `dashboard/pages/3_SSVEP.py` hardcoded
+`SESSION = 1` throughout, so a subject whose only ssvep record is session 2+
+(exactly what intaking `MET999.mat` with a session override produces) could
+never appear on that page, in either the Groups or Individuals view — not a
+data problem, since `metadata.csv` had the correct row all along, just a
+page-layer blind spot. Fixed by replacing the constant with
+`st.selectbox("Session", sorted(metadata_df["session"].unique()), ...)`,
+defaulting to session 1 whenever present (unchanged behavior for every
+existing subject), shared by both views. No changes to
+`ssveps/scripts/analysis.py` — its functions already took `session` as a
+parameter.
 
 ## Out of scope (M1)
 

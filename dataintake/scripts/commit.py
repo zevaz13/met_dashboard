@@ -14,16 +14,37 @@ from detect import BEH_HEADER
 from errors import DuplicateKeyError
 
 
-def commit_beh(path: Path, data_dir: Path, *, sub_id: str | None = None, group: str | None = None, overwrite: bool = False) -> int:
+def commit_beh(
+    path: Path,
+    data_dir: Path,
+    *,
+    sub_id: str | None = None,
+    group: str | None = None,
+    session: int | None = None,
+    overwrite: bool = False,
+    dry_run: bool = False,
+) -> int:
     """Append path's rows to <data_dir>/manualTest/behavioral_table.csv.
     Returns the number of rows written. Raises DuplicateKeyError if any
     (sub_id, session) in the incoming file already exists and overwrite is
-    False -- nothing is written in that case."""
+    False -- nothing is written in that case.
+
+    `session`, if given, relabels every row in the file to that session --
+    a blind, file-wide override, same as sub_id/group. The caller (the
+    intake page) is responsible for only offering this when a file actually
+    has a single session to begin with.
+
+    `dry_run` runs every check (including the DuplicateKeyError check) but
+    writes nothing -- used to validate every file in a multi-file batch
+    before committing any of them, so one file's conflict can't leave an
+    earlier file in the same batch already written with no way back."""
     loader = load_domain_loader("beh")
     df = pd.read_csv(path)
 
     if sub_id is not None:
         df["SubID"] = sub_id
+    if session is not None:
+        df["session"] = session
     if group is not None:
         part_type_by_group = {g: pt for pt, g in loader.PART_TYPE_GROUP.items()}
         if group not in part_type_by_group:
@@ -40,6 +61,9 @@ def commit_beh(path: Path, data_dir: Path, *, sub_id: str | None = None, group: 
     if duplicates and not overwrite:
         raise DuplicateKeyError(f"behavioral data already exists for {sorted(duplicates)}")
 
+    if dry_run:
+        return len(df)
+
     if duplicates:
         master = master[~master.set_index(["SubID", "session"]).index.isin(pd.MultiIndex.from_tuples(duplicates))]
 
@@ -47,13 +71,18 @@ def commit_beh(path: Path, data_dir: Path, *, sub_id: str | None = None, group: 
     return len(df)
 
 
-def commit_fm100(path: Path, data_dir: Path, *, sub_id: str | None = None, session: int | None = None, overwrite: bool = False) -> int:
+def commit_fm100(
+    path: Path, data_dir: Path, *, sub_id: str | None = None, session: int | None = None, overwrite: bool = False, dry_run: bool = False
+) -> int:
     """Append path's raw line(s) to <data_dir>/standardizedScores/repeatedSessionsPY.txt.
 
     Each line's session is auto-assigned to the next free slot (1/2/3, encoded
     as the reference-field suffix none/b/c, per FM100's own convention) unless
     `session` is given explicitly. Raises DuplicateKeyError if the target
-    session already exists and overwrite is False. Returns rows written."""
+    session already exists and overwrite is False. Returns rows written.
+
+    `dry_run` runs the same validation without writing -- see commit_beh's
+    docstring for why (multi-file batch validation)."""
     loader = load_domain_loader("fm100")
     master_path = Path(data_dir) / "standardizedScores" / "repeatedSessionsPY.txt"
     if not master_path.exists():
@@ -79,6 +108,9 @@ def commit_fm100(path: Path, data_dir: Path, *, sub_id: str | None = None, sessi
 
         fields[loader.REFERENCE_COL] = _fm100_reference(target_sub_id, target_session)
         new_lines.append(",".join(fields))
+
+    if dry_run:
+        return len(new_lines)
 
     master_path.write_text("\n".join([glitch_line] + data_lines + new_lines) + "\n")
     return len(new_lines)
@@ -121,6 +153,20 @@ def _fm100_reference(sub_id: str, session: int) -> str:
     return {1: sub_id, 2: sub_id + "b", 3: sub_id + "c"}[session]
 
 
+def suggest_fm100_session(data_dir: Path, sub_id: str) -> int:
+    """Next free fm100 session slot (1/2/3) for sub_id, given data_dir's
+    current repeatedSessionsPY.txt -- for the intake UI to show a live,
+    accurate default next to its editable session field. commit_fm100
+    recomputes this itself at commit time regardless, so the two can never
+    drift apart. A missing master file (nothing committed yet) suggests 1."""
+    loader = load_domain_loader("fm100")
+    master_path = Path(data_dir) / "standardizedScores" / "repeatedSessionsPY.txt"
+    if not master_path.exists():
+        return 1
+    data_lines = master_path.read_text().splitlines()[1:]
+    return _fm100_next_session(_fm100_sessions_for(data_lines, loader, sub_id))
+
+
 def _read_or_empty_csv(path: Path, columns: list[str]) -> pd.DataFrame:
     return pd.read_csv(path, keep_default_na=False) if path.exists() else pd.DataFrame(columns=columns)
 
@@ -132,7 +178,9 @@ def commit_ssvep(
     sub_id: str | None = None,
     group: str | None = None,
     subgroup: str | None = None,
+    session: int | None = None,
     overwrite: bool = False,
+    dry_run: bool = False,
 ) -> int:
     """Write path's .mat data into <data_dir>/ssveps/files/{metadata,runmap,baselines}.csv.
 
@@ -140,7 +188,10 @@ def commit_ssvep(
     is False. On an overwrite, only runmap/baselines rows are replaced --
     metadata.csv's group/subgroup for an existing key is never touched here,
     matching update_derived.py's own policy (hand-correct metadata.csv
-    directly to change it). Returns 1 (one file committed)."""
+    directly to change it). Returns 1 (one file committed).
+
+    `dry_run` runs the same validation without writing -- see commit_beh's
+    docstring for why (multi-file batch validation)."""
     import json
 
     loader = load_domain_loader("ssvep")
@@ -151,6 +202,8 @@ def commit_ssvep(
         d["group"] = group
     if subgroup is not None:
         d["subgroup"] = subgroup
+    if session is not None:
+        d["session"] = session
 
     metadata_row, runmap_rows, baseline_rows = loader.to_rows(d, path.name)
     key = (metadata_row["sub_id"], metadata_row["session"])
@@ -167,9 +220,13 @@ def commit_ssvep(
     baselines_df = _read_or_empty_csv(baselines_path, loader.CSV_COLUMNS["baselines"])
 
     existing_keys = set(zip(metadata_df["sub_id"], metadata_df["session"])) if len(metadata_df) else set()
+    if key in existing_keys and not overwrite:
+        raise DuplicateKeyError(f"ssvep data already exists for {key[0]} session {key[1]}")
+
+    if dry_run:
+        return 1
+
     if key in existing_keys:
-        if not overwrite:
-            raise DuplicateKeyError(f"ssvep data already exists for {key[0]} session {key[1]}")
         key_index = pd.MultiIndex.from_tuples([key])
         runmap_df = runmap_df[~runmap_df.set_index(["sub_id", "session"]).index.isin(key_index)]
         baselines_df = baselines_df[~baselines_df.set_index(["sub_id", "session"]).index.isin(key_index)]

@@ -94,3 +94,43 @@ def test_sub_id_override_renames_subject(data_dir):
 
     master = pd.read_csv(_master_path(data_dir))
     assert set(master["SubID"]) == {"MET123"}
+
+
+def test_session_override_relabels_every_row(data_dir):
+    pd.DataFrame(columns=BEH_COLUMNS).to_csv(_master_path(data_dir), index=False)
+
+    commit.commit_beh(BEH_FIXTURE, data_dir, session=2)
+
+    master = pd.read_csv(_master_path(data_dir))
+    assert set(master["session"]) == {2}
+
+
+def test_session_override_duplicate_check_uses_overridden_session(data_dir):
+    existing = pd.DataFrame([{"SubID": "MET999", "Red": 1, "Green": 2, "RunNumber": 1, "session": 2, "PartType": 1, "Date": "01_JAN", "FolderOrg": "x"}])
+    existing.to_csv(_master_path(data_dir), index=False)
+
+    with pytest.raises(DuplicateKeyError):
+        commit.commit_beh(BEH_FIXTURE, data_dir, session=2)
+
+    master = pd.read_csv(_master_path(data_dir))
+    assert len(master) == 1  # untouched, session-1 write never attempted
+
+
+def test_dry_run_writes_nothing_on_a_clear_key(data_dir):
+    pd.DataFrame(columns=BEH_COLUMNS).to_csv(_master_path(data_dir), index=False)
+
+    commit.commit_beh(BEH_FIXTURE, data_dir, dry_run=True)
+
+    master = pd.read_csv(_master_path(data_dir))
+    assert len(master) == 0
+
+
+def test_dry_run_still_raises_on_duplicate(data_dir):
+    existing = pd.DataFrame([{"SubID": "MET999", "Red": 1, "Green": 2, "RunNumber": 1, "session": 1, "PartType": 1, "Date": "01_JAN", "FolderOrg": "x"}])
+    existing.to_csv(_master_path(data_dir), index=False)
+
+    with pytest.raises(DuplicateKeyError):
+        commit.commit_beh(BEH_FIXTURE, data_dir, dry_run=True)
+
+    master = pd.read_csv(_master_path(data_dir))
+    assert len(master) == 1  # untouched

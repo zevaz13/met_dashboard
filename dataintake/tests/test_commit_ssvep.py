@@ -96,3 +96,47 @@ def test_sub_id_and_group_override_apply_on_a_new_key(data_dir):
     metadata = pd.read_csv(_files_dir(data_dir) / "metadata.csv", keep_default_na=False)
     row = metadata.iloc[0]
     assert (row["sub_id"], row["group"], row["subgroup"]) == ("MET777", "PD", "protan")
+
+
+def test_session_override_targets_a_different_session(data_dir):
+    _write_stores(data_dir)
+
+    commit.commit_ssvep(SSVEP_FIXTURE, data_dir, session=5)
+
+    metadata = pd.read_csv(_files_dir(data_dir) / "metadata.csv")
+    assert metadata.iloc[0]["session"] == 5
+    runmap = pd.read_csv(_files_dir(data_dir) / "runmap.csv")
+    assert set(runmap["session"]) == {5}
+    baselines = pd.read_csv(_files_dir(data_dir) / "baselines.csv")
+    assert set(baselines["session"]) == {5}
+
+
+def test_session_override_duplicate_check_uses_overridden_session(data_dir):
+    _write_stores(data_dir, metadata_rows=[{"filename": "x.mat", "sub_id": "MET000", "session": 5, "group": "CTR", "subgroup": "NA"}])
+
+    with pytest.raises(DuplicateKeyError):
+        commit.commit_ssvep(SSVEP_FIXTURE, data_dir, session=5)
+
+    # the fixture's own embedded session (2) is untouched and still free
+    commit.commit_ssvep(SSVEP_FIXTURE, data_dir, session=2)
+    metadata = pd.read_csv(_files_dir(data_dir) / "metadata.csv")
+    assert set(metadata["session"]) == {5, 2}
+
+
+def test_dry_run_writes_nothing_on_a_clear_key(data_dir):
+    _write_stores(data_dir)
+
+    commit.commit_ssvep(SSVEP_FIXTURE, data_dir, dry_run=True)
+
+    metadata = pd.read_csv(_files_dir(data_dir) / "metadata.csv")
+    assert len(metadata) == 0
+
+
+def test_dry_run_still_raises_on_duplicate(data_dir):
+    _write_stores(data_dir, metadata_rows=[{"filename": "x.mat", "sub_id": "MET000", "session": 2, "group": "CTR", "subgroup": "NA"}])
+
+    with pytest.raises(DuplicateKeyError):
+        commit.commit_ssvep(SSVEP_FIXTURE, data_dir, dry_run=True)
+
+    metadata = pd.read_csv(_files_dir(data_dir) / "metadata.csv")
+    assert len(metadata) == 1  # untouched

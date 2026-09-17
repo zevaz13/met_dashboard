@@ -84,11 +84,15 @@ def _detect_beh(path: Path):
 
 
 def _detect_fm100(path: Path):
+    # No "session" in meta here on purpose: the raw line carries no reliable
+    # session marker of its own (a fresh export is always unsuffixed), so the
+    # only trustworthy answer is commit.suggest_fm100_session(data_dir, sub_id),
+    # which needs to know the *target* data store, not just this file.
     loader = load_domain_loader("fm100")
     fields = _first_line(path).split(",")
     raw_id = fields[loader.REFERENCE_COL].strip()
-    sub_id, session = loader._parse_session_and_id(raw_id)
-    meta = {"session": session}
+    sub_id, _ = loader._parse_session_and_id(raw_id)
+    meta = {}
     _flag_filename_mismatch(path, sub_id, meta)
     return "fm100", sub_id, meta
 

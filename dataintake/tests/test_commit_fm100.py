@@ -106,3 +106,43 @@ def test_sub_id_override_targets_a_different_subject(data_dir):
 def test_missing_master_file_raises_clear_error(data_dir):
     with pytest.raises(FileNotFoundError):
         commit.commit_fm100(FM100_FIXTURE, data_dir)
+
+
+def test_suggest_session_is_one_for_a_brand_new_subject(data_dir):
+    _write_master(data_dir, [])
+
+    assert commit.suggest_fm100_session(data_dir, "MET999") == 1
+
+
+def test_suggest_session_is_next_free_slot_for_an_existing_subject(data_dir):
+    _write_master(data_dir, [_row_for("MET999")])
+
+    assert commit.suggest_fm100_session(data_dir, "MET999") == 2
+    assert commit.suggest_fm100_session(data_dir, "MET500") == 1  # unaffected, different subject
+
+
+def test_suggest_session_matches_what_commit_actually_assigns(data_dir):
+    _write_master(data_dir, [_row_for("MET999")])
+
+    suggested = commit.suggest_fm100_session(data_dir, "MET999")
+    commit.commit_fm100(FM100_FIXTURE, data_dir, sub_id="MET999")
+
+    assert suggested == 2
+    assert set(_sessions_for(data_dir, "MET999")) == {"MET999", "MET999b"}
+
+
+def test_dry_run_writes_nothing_on_a_clear_key(data_dir):
+    _write_master(data_dir, [])
+
+    commit.commit_fm100(FM100_FIXTURE, data_dir, dry_run=True)
+
+    assert _sessions_for(data_dir, "MET999") == []
+
+
+def test_dry_run_still_raises_on_duplicate(data_dir):
+    _write_master(data_dir, [_row_for("MET999")])
+
+    with pytest.raises(DuplicateKeyError):
+        commit.commit_fm100(FM100_FIXTURE, data_dir, session=1, dry_run=True)
+
+    assert _sessions_for(data_dir, "MET999") == ["MET999"]  # untouched
