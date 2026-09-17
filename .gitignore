@@ -24,3 +24,9 @@ data/**
 # dropped into it (new subject data, awaiting the Data Intake page) are not.
 updateData/*
 !updateData/README.md
+
+# Data removal backups -- the folder is tracked so it always exists, but the
+# backups themselves (written before each delete, by the Data Removal page)
+# are not.
+deletedData/*
+!deletedData/README.md
