@@ -5,12 +5,14 @@ knowledge (column names, group mappings, raw-column positions) rather than
 redefining it, and never touches more than one domain's loader.py per call.
 """
 
+import json
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
 from _domain_loaders import load_domain_loader
-from detect import BEH_HEADER
+from detect import BEH_HEADER, beh_csv_frame
 from errors import DuplicateKeyError
 
 
@@ -39,7 +41,7 @@ def commit_beh(
     before committing any of them, so one file's conflict can't leave an
     earlier file in the same batch already written with no way back."""
     loader = load_domain_loader("beh")
-    df = pd.read_csv(path)
+    df = _beh_json_frame(path) if path.suffix.lower() == ".json" else beh_csv_frame(path)
 
     if sub_id is not None:
         df["SubID"] = sub_id
@@ -69,6 +71,27 @@ def commit_beh(
 
     pd.concat([master, df[BEH_HEADER]], ignore_index=True).to_csv(master_path, index=False)
     return len(df)
+
+
+def _beh_json_frame(path: Path) -> pd.DataFrame:
+    """Convert a behavioral JSON export to the master table's rows. SubID is
+    the filename stem; session 1 and PartType 0 (unknown group) are
+    placeholders for the caller's overrides to replace."""
+    d = json.loads(path.read_text())
+    raw = pd.DataFrame(d["data"], columns=d["columns"])
+    meta = d["metadata"]
+    return pd.DataFrame(
+        {
+            "SubID": path.stem.split("_")[0],
+            "Red": raw["Red"],
+            "Green": raw["Green"],
+            "RunNumber": raw["TrialNumber"],
+            "session": 1,
+            "PartType": 0,
+            "Date": datetime.fromisoformat(meta["saved_at"]).strftime("%d_%b_%y").upper(),
+            "FolderOrg": meta["experiment_name"],
+        }
+    )
 
 
 def commit_fm100(

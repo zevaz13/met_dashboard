@@ -5,11 +5,13 @@ from pathlib import Path
 import streamlit as st
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "dataintake" / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "dashboard"))
 
-import commit  # noqa: E402
-import detect  # noqa: E402
-from errors import DuplicateKeyError  # noqa: E402
+from _pagesetup import use_scripts  # noqa: E402
+
+# dataremoval/scripts has same-named errors.py and _domain_loaders.py
+mods = use_scripts("dataintake/scripts", "errors", "_domain_loaders", "detect", "commit", "formats")
+commit, detect, formats, DuplicateKeyError = mods["commit"], mods["detect"], mods["formats"], mods["errors"].DuplicateKeyError
 
 UPDATE_DIR = Path(os.environ.get("MET_DASHBOARD_UPDATE_DIR", REPO_ROOT / "updateData"))
 DATA_DIR = Path(os.environ.get("MET_DASHBOARD_DATA_DIR", REPO_ROOT / "data"))
@@ -20,6 +22,8 @@ SUBGROUP_OPTIONS = ["NA", "protan", "deutan"]
 st.set_page_config(page_title="Data Intake", page_icon="📥", layout="wide")
 st.title("Data Intake")
 st.caption(f"Watching {UPDATE_DIR}")
+with st.expander("What can I submit?"):
+    st.markdown(formats.ACCEPTED_FORMATS_MD)
 
 
 def scan_batches():

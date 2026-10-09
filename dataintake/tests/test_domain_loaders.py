@@ -17,7 +17,7 @@ from _domain_loaders import load_domain_loader  # noqa: E402
 def test_loads_beh_loader_from_its_own_file():
     loader = load_domain_loader("beh")
     assert Path(loader.__file__).resolve() == Path(__file__).resolve().parents[2] / "beh/scripts/loader.py"
-    assert loader.PART_TYPE_GROUP == {1: "CTR", 2: "CVD", 3: "PD", 4: "HD"}
+    assert loader.PART_TYPE_GROUP == {0: "UNKNOWN", 1: "CTR", 2: "CVD", 3: "PD", 4: "HD"}
 
 
 def test_switching_domains_reloads_from_the_correct_file_each_time():

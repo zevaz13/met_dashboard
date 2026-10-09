@@ -27,9 +27,9 @@ DATA_DIR = os.environ.get(
 RAW_PATH = os.path.join(DATA_DIR, "manualTest", "behavioral_table.csv")
 SSVEP_METADATA_PATH = os.path.join(DATA_DIR, "ssveps", "files", "metadata.csv")
 
-# PartType -> group, confirmed against ssveps/files/metadata.csv's own group
+# PartType -> group (0 = group not yet assigned, e.g. JSON intake), confirmed against ssveps/files/metadata.csv's own group
 # column for every one of the 43 subjects present in both datasets.
-PART_TYPE_GROUP = {1: "CTR", 2: "CVD", 3: "PD", 4: "HD"}
+PART_TYPE_GROUP = {0: "UNKNOWN", 1: "CTR", 2: "CVD", 3: "PD", 4: "HD"}
 
 
 def load_behavioral(path: str = RAW_PATH, *, ssvep_metadata_path: str = SSVEP_METADATA_PATH) -> pd.DataFrame:

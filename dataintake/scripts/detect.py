@@ -7,11 +7,14 @@ keeps that mismatch on purpose). Extension only narrows which check runs;
 the actual signature is checked before a domain is assigned.
 """
 
+import json
+from datetime import datetime
 from pathlib import Path
 
 from _domain_loaders import load_domain_loader
 
 BEH_HEADER = ["SubID", "Red", "Green", "RunNumber", "session", "PartType", "Date", "FolderOrg"]
+BEH_JSON_REQUIRED_COLUMNS = {"TrialNumber", "Red", "Green"}
 FM100_FIELD_COUNT = 102
 SSVEP_REQUIRED_KEYS = {"SubID", "session", "group", "subgroup", "runMap", "baselines", "redArray", "greenArray"}
 
@@ -25,11 +28,18 @@ def detect_file(path: Path) -> tuple[str | None, str | None, dict]:
     if suffix == ".mat":
         return _detect_ssvep(path)
 
+    if suffix == ".json":
+        return _detect_beh_json(path)
+
     if suffix in (".csv", ".txt"):
         first_line = _first_line(path)
         if first_line is not None:
-            if [c.strip() for c in first_line.split(",")] == BEH_HEADER:
+            header = {c.strip().lower() for c in first_line.split(",")}
+            if {"red", "green"} <= header:
                 return _detect_beh(path)
+            if header & {"red", "green"}:
+                missing = "Green" if "red" in header else "Red"
+                return None, None, {"reason": f"behavioral CSV needs both Red and Green columns, missing {missing}: {path.name}"}
             if len(first_line.split(",")) == FM100_FIELD_COUNT:
                 return _detect_fm100(path)
 
@@ -64,10 +74,31 @@ def _detect_ssvep(path: Path):
     return "ssvep", sub_id, meta
 
 
-def _detect_beh(path: Path):
+def beh_csv_frame(path: Path):
+    """A behavioral CSV in the master table's schema. Only Red and Green
+    (any case) are required; every other BEH_HEADER column that's missing
+    gets a default the intake page lets the user override."""
     import pandas as pd
 
     df = pd.read_csv(path)
+    canonical = {c.lower(): c for c in BEH_HEADER}
+    df = df.rename(columns={c: canonical[c.strip().lower()] for c in df.columns if c.strip().lower() in canonical})
+    defaults = {
+        "SubID": _filename_sub_id(path),
+        "RunNumber": range(1, len(df) + 1),
+        "session": 1,
+        "PartType": 0,
+        "Date": datetime.fromtimestamp(path.stat().st_mtime).strftime("%d_%b_%y").upper(),
+        "FolderOrg": path.name,
+    }
+    for column, value in defaults.items():
+        if column not in df.columns:
+            df[column] = value
+    return df[BEH_HEADER]
+
+
+def _detect_beh(path: Path):
+    df = beh_csv_frame(path)
     sub_ids = df["SubID"].unique()
     if len(sub_ids) != 1:
         return None, None, {"reason": f"expected exactly one SubID per file, found {list(sub_ids)}"}
@@ -81,6 +112,20 @@ def _detect_beh(path: Path):
     }
     _flag_filename_mismatch(path, sub_id, meta)
     return "beh", sub_id, meta
+
+
+def _detect_beh_json(path: Path):
+    """Behavioral task export: no subject ID, group, or session inside the
+    file, so sub_id comes from the filename and group/session are defaults
+    the intake page lets the user override."""
+    try:
+        d = json.loads(path.read_text())
+        is_beh = d["metadata"]["mode"] == "behavioral" and BEH_JSON_REQUIRED_COLUMNS <= set(d["columns"])
+    except (ValueError, KeyError, TypeError):
+        return None, None, {"reason": f"not a behavioral JSON export: {path.name}"}
+    if not is_beh:
+        return None, None, {"reason": f"not a behavioral JSON export: {path.name}"}
+    return "beh", _filename_sub_id(path), {"group": "UNKNOWN", "sessions": [1], "format": "json"}
 
 
 def _detect_fm100(path: Path):

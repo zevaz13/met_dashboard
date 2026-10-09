@@ -5,11 +5,13 @@ from pathlib import Path
 import streamlit as st
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "dataremoval" / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "dashboard"))
 
-import delete  # noqa: E402
-import inventory  # noqa: E402
-from errors import RowNotFoundError  # noqa: E402
+from _pagesetup import use_scripts  # noqa: E402
+
+# dataintake/scripts has same-named errors.py and _domain_loaders.py
+mods = use_scripts("dataremoval/scripts", "errors", "_domain_loaders", "delete", "inventory")
+delete, inventory, RowNotFoundError = mods["delete"], mods["inventory"], mods["errors"].RowNotFoundError
 
 DATA_DIR = Path(os.environ.get("MET_DASHBOARD_DATA_DIR", REPO_ROOT / "data"))
 DELETED_DIR = Path(os.environ.get("MET_DASHBOARD_DELETED_DIR", REPO_ROOT / "deletedData"))
